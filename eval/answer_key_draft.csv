@@ -1,0 +1,81 @@
+﻿tx_id,date,account_id,amount,currency,bank_text,case_type,expected_customer,expected_invoices,expected_adjustment,expected_certainty,note
+TX-00001,2026-11-08,ACC-01,4200,ILS,שופ-נט מרקטפלייס בע״מ,exact,C001,INV-10001,,certain,
+TX-00002,2026-11-08,ACC-03,4250,USD,GLOBALMKT PAYMENTS INV-10006 INV-10007,combo_ref,C002,INV-10006;INV-10007,,certain,
+TX-00003,2026-11-08,ACC-01,7760,ILS,סופר בית רשתות,withholding,C004,INV-10014,withholding 240,reasonable,alias + 3%
+TX-00004,2026-11-08,ACC-02,-48250,ILS,"משכורות נובמבר - מס""ב",filter,,,,,outgoing
+TX-00005,2026-11-08,ACC-06,152.4,ILS,ריבית זכות,filter,,,,,interest
+TX-00006,2026-11-08,ACC-02,-3200,ILS,דלק פז - הוראת קבע,filter,,,,,outgoing
+TX-00007,2026-11-09,ACC-05,3172,EUR,EUROSHIP GMBH,fee_foreign,C003,INV-10011,bank_fee 28,reasonable,intermediary fee EUR
+TX-00008,2026-11-09,ACC-01,2980,ILS,בטא שיווק,fee_local,C013,INV-10032,bank_fee 20,reasonable,fuzzy name + fee
+TX-00009,2026-11-09,ACC-01,1890,ILS,פייפלו תשלומים,payment_platform,C006,INV-10019,,reasonable,"platform alias, amount decides"
+TX-00010,2026-11-09,ACC-04,18342.55,ILS,זיכוי סליקה - כרטיסי אשראי,unsupported,,,,exception,UNSUPPORTED_TX_TYPE
+TX-00011,2026-11-09,ACC-06,-25000,ILS,העברה בין חשבונות - לחשבון 1,filter,,,,,internal transfer out
+TX-00012,2026-11-09,ACC-01,25000,ILS,העברה בין חשבונות - מחשבון 6,filter,,,,,internal transfer in
+TX-00013,2026-11-09,ACC-01,3725,ILS,שופ-נט מרקטפלייס בע״מ INV-10035,exact_ref,C001,INV-10035,,certain,
+TX-00014,2026-11-09,ACC-01,1750,ILS,מטבחי השרון בע״מ,exact,C010,INV-10028,,certain,
+TX-00015,2026-11-10,ACC-01,5700,ILS,קבוצת פלוס החזקות,withholding,C005,INV-10017,withholding 300,reasonable,parent alias + 5%
+TX-00016,2026-11-10,ACC-03,3100,USD,GLOBALMKT PAYMENTS REF INV-10008,exact_ref,C002,INV-10008,,certain,
+TX-00017,2026-11-10,ACC-05,2150,EUR,NORDIC HOME AB,exact,C008,INV-10023,,certain,bank text = official name
+TX-00018,2026-11-10,ACC-01,12000,ILS,מכללת הדרום,withholding,C011,INV-10029,withholding 3000,reasonable,exact name + 20%
+TX-00019,2026-11-10,ACC-02,-11870,ILS,ספק הובלות צפון בע״מ,filter,,,,,outgoing
+TX-00020,2026-11-10,ACC-01,2600,ILS,בטא,llm_identify,C012,INV-10031,,reasonable,ambiguous name; amount fits C012 only
+TX-00021,2026-11-10,ACC-01,5400,ILS,שופ-נט מרקטפלייס בע״מ,exact,C001,INV-10005,,certain,
+TX-00022,2026-11-11,ACC-03,4462,USD,PACIFIC TRADE LLC,fee_foreign,C009,INV-10025,bank_fee 38,reasonable,intermediary fee USD
+TX-00023,2026-11-11,ACC-01,1250,ILS,פייפלו תשלומים,payment_platform,C007,INV-10021,,reasonable,"platform alias, amount decides"
+TX-00024,2026-11-11,ACC-01,1800,ILS,מטבחי השרון חש INV-10027,partial_ref,C010,INV-10027,partial 1800 left,reasonable,partial with reference
+TX-00025,2026-11-11,ACC-01,12900,ILS,שופנט מרקט,combo_alias,C001,INV-10002;INV-10003;INV-10004,,reasonable,alias + 3 invoices
+TX-00026,2026-11-11,ACC-02,-6420.8,ILS,חברת החשמל - הוראת קבע,filter,,,,,outgoing
+TX-00027,2026-11-11,ACC-04,9871.2,ILS,זיכוי סליקה - כרטיסי אשראי,unsupported,,,,exception,UNSUPPORTED_TX_TYPE
+TX-00028,2026-11-12,ACC-01,12125,ILS,סופר בית רשתות,withholding,C004,INV-10015,withholding 375,reasonable,alias + 3%
+TX-00029,2026-11-12,ACC-05,1450,EUR,EUROSHIP GMBH INV-10012,exact_ref,C003,INV-10012,,certain,
+TX-00030,2026-11-12,ACC-01,700,ILS,העברה מזהה 88231,unidentified,,,,exception,CUSTOMER_NOT_IDENTIFIED
+TX-00031,2026-11-12,ACC-05,990,EUR,NORDIC HM AB STOCKHOLM,llm_identify,C008,INV-10024,,reasonable,abbreviated foreign name
+TX-00032,2026-11-12,ACC-01,1480,ILS,בטא שיווק בע״מ,exact,C013,INV-10033,,certain,
+TX-00033,2026-11-12,ACC-01,3230,ILS,קבוצת פלוס החזקות,withholding,C005,INV-10018,withholding 170,reasonable,parent alias + 5%
+TX-00034,2026-11-12,ACC-02,-2150,ILS,עמלות ניהול חשבון,filter,,,,,outgoing
+TX-00035,2026-11-12,ACC-01,7600,ILS,מכללת הדרום,withholding,C011,INV-10030,withholding 1900,reasonable,exact name + 20%
+TX-00036,2026-11-12,ACC-02,-4380,ILS,ביטוח לאומי - ניכויים,filter,,,,,outgoing
+TX-00037,2026-11-15,ACC-01,2340,ILS,פייפלו תשלומים,ambiguous,,INV-10020|INV-10022,,exception,AMBIGUOUS_MATCH (C006 vs C007)
+TX-00038,2026-11-15,ACC-03,975,USD,GLOBALMKT PAYMENTS,exact_alias,C002,INV-10009,,reasonable,alias exact amount
+TX-00039,2026-11-15,ACC-01,4462,ILS,רשת סופר-בית בע״מ,withholding,C004,INV-10016,withholding 138,reasonable,exact name + 3%
+TX-00040,2026-11-15,ACC-01,7037.8,ILS,PACIFIC TRADE LLC,fx,C009,INV-10026,fx_diff 61.60,reasonable,USD invoice paid in ILS
+TX-00041,2026-11-15,ACC-01,1100,ILS,מטבחי השרון בע״מ,exact,C010,INV-10042,,certain,invoice already partially paid; open balance 1100
+TX-00042,2026-11-15,ACC-02,-38400,ILS,מע״מ - תשלום תקופתי,filter,,,,,outgoing
+TX-00043,2026-11-15,ACC-01,1863.0,ILS,החזר מס - רשות המסים,filter,,,,,tax refund
+TX-00044,2026-11-15,ACC-06,-10000,ILS,העברה בין חשבונות - לחשבון 1,filter,,,,,internal transfer out
+TX-00045,2026-11-16,ACC-01,4150,ILS,בטא-טק בע״מ,exact,C012,INV-10043,,certain,
+TX-00046,2026-11-16,ACC-01,900,ILS,מטבחי השרון,partial_noref,C010,,,exception,PARTIAL_WITHOUT_REFERENCE
+TX-00047,2026-11-16,ACC-05,1720,EUR,NORDIC HOME AB INV-10041,exact_ref,C008,INV-10041,,certain,
+TX-00048,2026-11-16,ACC-01,5400,ILS,מכללת הדרום אגף כספים,withholding,C011,INV-10047,withholding 1350,reasonable,fuzzy name + 20%
+TX-00049,2026-11-16,ACC-04,12403.9,ILS,זיכוי סליקה - כרטיסי אשראי,unsupported,,,,exception,UNSUPPORTED_TX_TYPE
+TX-00050,2026-11-16,ACC-02,-15600,ILS,ספק אריזות דרום,filter,,,,,outgoing
+TX-00051,2026-11-16,ACC-01,5260,ILS,בטא שיווק בע״מ INV-10045,exact_ref,C013,INV-10045,,certain,
+TX-00052,2026-11-17,ACC-01,3246,ILS,PACIFIC TRADE LLC,fx_above,C009,INV-10034,,exception,FX_DIFF_ABOVE_TOLERANCE
+TX-00053,2026-11-17,ACC-03,1600,USD,GLOBALMKT PAYMENTS INV-10010,exact_ref,C002,INV-10010,,certain,
+TX-00054,2026-11-17,ACC-01,1460,ILS,טק-גאדג׳טס,exact,C006,INV-10039,,certain,same name; Hebrew geresh normalized
+TX-00055,2026-11-17,ACC-01,4200,ILS,שופ-נט מרקטפלייס בע״מ,duplicate,C001,,,exception,OVERPAYMENT (INV-10001 already paid)
+TX-00056,2026-11-17,ACC-01,9506,ILS,סופר בית רשתות,withholding,C004,INV-10037,withholding 294,reasonable,alias + 3%
+TX-00057,2026-11-17,ACC-06,-40000,ILS,העברה בין חשבונות - לחשבון 2,filter,,,,,internal transfer out
+TX-00058,2026-11-17,ACC-02,40000,ILS,העברה בין חשבונות - מחשבון 6,filter,,,,,internal transfer in
+TX-00059,2026-11-18,ACC-05,2780,EUR,EUROSHIP GMBH,fee_foreign,C003,INV-10013,bank_fee 20,reasonable,intermediary fee EUR
+TX-00060,2026-11-18,ACC-01,880,ILS,ספרים ועוד בע״מ,exact,C007,INV-10040,,certain,
+TX-00061,2026-11-18,ACC-01,2565,ILS,קבוצת פלוס החזקות,withholding,C005,INV-10038,withholding 135,reasonable,parent alias + 5%
+TX-00062,2026-11-18,ACC-01,5420,ILS,בטא,ambiguous_llm,,,,exception,CUSTOMER_NOT_IDENTIFIED / no invoice fits (4150 C012 paid) -> exception
+TX-00063,2026-11-18,ACC-02,-27300,ILS,ספק הובלות צפון בע״מ,filter,,,,,outgoing
+TX-00064,2026-11-18,ACC-01,2215,ILS,ש.נ. מרקטפלייס,llm_identify_unmatched,C001,,,exception,LLM_SUGGESTION_NOT_VERIFIED: LLM identified C001 but no invoice fits 2215
+TX-00065,2026-11-18,ACC-03,1850,USD,PACIFIC TRADE LLC,exact,C009,INV-10058,,certain,bank text = official name
+TX-00066,2026-11-18,ACC-04,7215.6,ILS,זיכוי סליקה - כרטיסי אשראי,unsupported,,,,exception,UNSUPPORTED_TX_TYPE
+TX-00067,2026-11-18,ACC-02,-1290,ILS,תוכנה - מנוי חודשי,filter,,,,,outgoing
+TX-00068,2026-11-19,ACC-03,2275,USD,GLOBALMKT PAYMENTS,exact_alias,C002,INV-10036,,reasonable,alias exact amount
+TX-00069,2026-11-19,ACC-01,3080,ILS,טק-גאדג'טס בע״מ,exact,C006,INV-10046,,certain,
+TX-00070,2026-11-19,ACC-01,4480,ILS,שופ-נט מרקטפלייס בע״מ,exact,C001,INV-10056,,certain,
+TX-00071,2026-11-19,ACC-05,980,EUR,EUROSHIP GMBH INV-10048,exact_ref,C003,INV-10048,,certain,
+TX-00072,2026-11-19,ACC-01,4210,ILS,בטא-טק בע״מ,combo,C012,INV-10044;INV-10052,,certain,exact name + 2 invoices (1320+2890)
+TX-00073,2026-11-19,ACC-01,1287.5,ILS,מטבחי השרון בע״מ,fee_local,C010,INV-10051,bank_fee 2.50,reasonable,small diff treated as fee (<=25)
+TX-00074,2026-11-19,ACC-01,3780,ILS,סופר בית רשתות,withholding_unmatched,C004,,,exception,"PARTIAL_WITHOUT_REFERENCE: alias; 3780 less than open invoice, no reference"
+TX-00075,2026-11-19,ACC-02,-9200,ILS,שכירות מחסן - הוראת קבע,filter,,,,,outgoing
+TX-00076,2026-11-19,ACC-06,147.85,ILS,ריבית זכות,filter,,,,,interest
+TX-00077,2026-11-19,ACC-01,1560,ILS,ספרים ועוד בע״מ,exact,C007,INV-10057,,certain,
+TX-00078,2026-11-19,ACC-01,3120,ILS,מכללת הדרום,withholding,C011,INV-10059,withholding 780,reasonable,exact name + 20%
+TX-00079,2026-11-19,ACC-03,3340,USD,GLOBALMKT PAYMENTS INV-10049,exact_ref,C002,INV-10049,,certain,
+TX-00080,2026-11-19,ACC-02,-5640,ILS,ספק אריזות דרום,filter,,,,,outgoing

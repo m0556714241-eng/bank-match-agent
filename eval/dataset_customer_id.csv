@@ -1,0 +1,26 @@
+﻿case_id,bank_text,currency,expected_customer,why_hard
+ID-01,ש.נ. מרקטפלייס,ILS,C001,initials instead of full name
+ID-02,SHOPNET MARKETPLACE LTD,ILS,C001,"Hebrew customer, English transliteration"
+ID-03,"שופנט בע""מ תשלום ספקים",ILS,C001,name joined + extra words
+ID-04,GLOBAL MKT INC SEATTLE,USD,C002,abbreviation + city
+ID-05,פייפלו תשלומים,ILS,NONE,payment platform for two customers - cannot know from text
+ID-06,EURO SHIP HAMBURG,EUR,C003,split word + city
+ID-07,יורושיפ,EUR,C003,foreign customer written in Hebrew
+ID-08,SUPER BAYIT CHAIN,ILS,C004,"Hebrew customer, English transliteration + translation"
+ID-09,סופר-בית סניף ראשי הנה״ח,ILS,C004,"extra words (branch, accounting)"
+ID-10,PLUS GRP HOLDINGS,ILS,C005,"parent company, English abbreviation"
+ID-11,פלוס החזקות בעמ,ILS,C005,"parent company, partial name"
+ID-12,TECH GADGETS LTD,ILS,C006,Hebrew customer in English
+ID-13,טק גדג'ט,ILS,C006,spelling variant
+ID-14,ספרים&עוד,ILS,C007,symbol instead of word
+ID-15,SFARIM VEOD,ILS,C007,transliteration
+ID-16,NORDIC HM AB STOCKHOLM,EUR,C008,abbreviation + city
+ID-17,נורדיק הום שוודיה,EUR,C008,foreign customer in Hebrew + country
+ID-18,PACIFIC TRD,USD,C009,truncated name
+ID-19,מטבחי השרו,ILS,C010,typo (missing letter)
+ID-20,MITBACHEI HASHARON,ILS,C010,transliteration
+ID-21,מכללת הדרום - חשבונות ספקים,ILS,C011,extra words (department)
+ID-22,BETA MARKETING LTD,ILS,C013,translation of name - must not confuse with C012
+ID-23,בטא טכנולוגיות,ILS,C012,full word instead of short form - must not confuse with C013
+ID-24,בטא,ILS,NONE,fits two customers - should say unsure
+ID-25,העברה מזהה 88231,ILS,NONE,no name at all - should say unsure
