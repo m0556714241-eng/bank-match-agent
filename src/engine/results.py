@@ -36,6 +36,7 @@ class ExceptionReason(StrEnum):
     FX_DIFF_ABOVE_TOLERANCE = "FX_DIFF_ABOVE_TOLERANCE"  # הפרש שער מעל 2%
     UNSUPPORTED_TX_TYPE = "UNSUPPORTED_TX_TYPE"  # סוג תנועה שלא נתמך (סליקת אשראי)
     FX_RATE_UNAVAILABLE = "FX_RATE_UNAVAILABLE"  # אין שער לתאריך (לא מנחשים)
+    INVOICE_CONFLICT = "INVOICE_CONFLICT"  # אותה חשבונית כבר הוצעה להעברה אחרת באותה ריצה (ה-71)
 
 
 # ---------- צומת 1: סינון ----------

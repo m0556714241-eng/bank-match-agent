@@ -91,13 +91,18 @@ class Decision:
 class TxState(TypedDict, total=False):
     """הלוח הקטן: כל צומת בתת-גרף ממלא שדה אחד."""
 
-    run_date: date  # יום הבנק - לחשבוניות פתוחות "נכון לתאריך"
     tx: BankTransaction  # ההעברה (נכנסת עם הפיצול)
     filter: FilterResult  # מ-filter_tx
     customer: CustomerMatch  # מ-identify_customer / verify_llm_customer
     llm: LlmCustomerSuggestion  # מ-llm_identify
     match: InvoiceMatch  # מ-find_invoice
     results: Annotated[list[TxResult], operator.add]  # היציאה: תוצאה אחת שעולה ללוח הראשי
+
+
+class TxOutput(TypedDict):
+    """מה תת-הגרף מחזיר לגרף הראשי - רק התוצאה (ה-74). כל שאר השדות נשארים פנימיים."""
+
+    results: Annotated[list[TxResult], operator.add]  # אותו שדה ואותו כלל איחוד כמו ב-RunState - כדי שהשורות יצטרפו
 
 
 # ---------- הלוח הראשי של ריצה ----------
@@ -109,8 +114,10 @@ class RunState(TypedDict, total=False):
     run_id: str  # מזהה הריצה: run-<יום הבנק>-<תאריך ושעת ההפעלה> (ה-74)
     run_date: date  # איזה יום בנק מעבדים
     transactions: list[BankTransaction]  # ההעברות שעוד לא טופלו (מ-load_day)
+    customer_names: dict[str, str]  # מזהה לקוח -> שם, לתצוגה ולהסברים (מ-load_day)
     intake_issues: list[IntakeError | IntakeWarning]  # שגיאות ואזהרות קליטה - לדוח (ה-39, ה-46)
     results: Annotated[list[TxResult], operator.add]  # כלל איחוד: כל העברה מוסיפה תוצאה (ה-71)
+    checked_results: list[TxResult]  # התוצאות אחרי בדיקת ההתנגשות (מ-collect_results) - בלי כלל איחוד, מחליף
     explanations: ExplanationResult  # המשפטים והסיכום (מ-explain_and_summarize)
     approval_rows: list[ApprovalRow]  # מה שמוצג במסך האישור
     decisions: list[Decision]  # מה מנהלת החשבונות החליטה (מ-human_approval)

@@ -18,3 +18,5 @@ _to_delete/
 # קובץ אישי - לא מוגש
 הבנות.md
 .pytest_cache/
+data/memory/*.db-*
+data/output/*.db-*

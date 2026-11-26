@@ -45,6 +45,9 @@ class Settings:
     anthropic_api_key: str | None  # None = עוד לא הוכנס מפתח (נדרש רק משלב 5)
     langsmith_project: str
 
+    # ---------- שמירת מצב הגרף (שלב 6) ----------
+    checkpoint_path: Path = PROJECT_ROOT / "data" / "memory" / "checkpoints.db"  # קובץ השמירה של הגרף - ריצות שעצרו לאישור (ה-71)
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

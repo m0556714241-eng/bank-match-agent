@@ -58,6 +58,9 @@ EXCEPTION_TEMPLATES: dict[ExceptionReason, str] = {
     ),
     ExceptionReason.UNSUPPORTED_TX_TYPE: "סוג תנועה שלא נתמך (למשל סליקת אשראי); יש לטפל ידנית ב-{amount}.",
     ExceptionReason.FX_RATE_UNAVAILABLE: "אין שער יציג לתאריך הנדרש, ולכן אי אפשר לחשב התאמה; יש לבדוק ידנית.",
+    ExceptionReason.INVOICE_CONFLICT: (
+        "החשבונית {invoice} כבר הוצעה להעברה {other_tx} באותה ריצה; ייתכן תשלום כפול - יש לבדוק."
+    ),
 }
 
 SUMMARY_TEMPLATE = (

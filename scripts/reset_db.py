@@ -48,16 +48,30 @@ def read_records(path: Path, model: type[T]) -> list[T]:
     return records
 
 
-def reset(db_path: Path, customers_csv: Path, invoices_csv: Path, aliases_csv: Path) -> SqliteLedger:
-    """קורא ובודק את כל הקבצים, ורק אחר כך מוחק ובונה את המסד מחדש."""
-    # קודם קוראים הכול: אם קובץ פגום - המסד הישן נשאר כמו שהוא
+def reset(
+    db_path: Path,
+    customers_csv: Path,
+    invoices_csv: Path,
+    aliases_csv: Path,
+    checkpoint_path: Path | None = None,  # קובץ השמירה של הגרף (רשות) - נמחק יחד עם המסד (ה-71)
+) -> SqliteLedger:
+    """קורא ובודק את כל הקבצים, ורק אחר כך מוחק ובונה את המסד מחדש (וגם מוחק ריצות שעצרו לאישור)."""
+    # קודם קוראים הכול: אם קובץ פגום - המסד הישן וקובץ השמירה נשארים כמו שהם
     customers = read_records(customers_csv, Customer)
     invoices = read_records(invoices_csv, OpenInvoice)
     aliases = read_records(aliases_csv, Alias)
 
     if db_path.exists():
         db_path.unlink()
+    if checkpoint_path is not None:
+        _delete_checkpoints(checkpoint_path)  # ריצה ישנה שעצרה לא תתאים למסד החדש
     return SqliteLedger.create(db_path, customers, invoices, aliases)
+
+
+def _delete_checkpoints(path: Path) -> None:
+    """עזר של reset: מוחק את קובץ השמירה ואת שני קבצי הלוואי ש-SQLite יוצר לידו."""
+    for suffix in ("", "-wal", "-shm"):  # הקובץ עצמו + קבצי הלוואי של מצב WAL
+        Path(f"{path}{suffix}").unlink(missing_ok=True)  # לא קיים - לא שגיאה
 
 
 def main() -> int:
@@ -75,13 +89,21 @@ def main() -> int:
 
     # המסד מכיל רישומים - לא מוחקים בלי אישור מפורש
     if settings.db_path.exists() and not args.yes:
-        answer = input(f"המסד {settings.db_path.name} יימחק וכל הרישומים בו. להמשיך? (yes/no): ")
+        answer = input(
+            f"המסד {settings.db_path.name} יימחק וכל הרישומים בו, וגם הריצות שעצרו לאישור. להמשיך? (yes/no): "
+        )
         if answer.strip().lower() != "yes":
             print("בוטל. המסד לא השתנה.")
             return 1
 
     try:
-        ledger = reset(settings.db_path, settings.customers_csv, settings.invoices_csv, settings.aliases_csv)
+        ledger = reset(
+            settings.db_path,
+            settings.customers_csv,
+            settings.invoices_csv,
+            settings.aliases_csv,
+            checkpoint_path=settings.checkpoint_path,  # גם קובץ השמירה של הגרף (ה-71)
+        )
     except (SeedFileError, LedgerSeedError) as exc:
         print(f"האיפוס נכשל:\n{exc}")
         return 1
