@@ -9,19 +9,40 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 
 from langgraph.errors import NodeError
 from langgraph.runtime import Runtime
 from langgraph.types import Command, interrupt
 
-from src.adapters.interfaces import Certainty, LedgerStore
+from src.adapters.interfaces import (
+    Application,
+    AuditEntry,
+    Certainty,
+    DuplicatePostingError,
+    ExistingReceipt,
+    LedgerStore,
+    PostingControlError,
+    ReceiptPosting,
+)
 from src.domain.money import Money
-from src.engine.customer_id import identify_customer, verify_llm_customer
+from src.engine.customer_id import identify_customer, normalize_name, verify_llm_customer
 from src.engine.filters import filter_tx
 from src.engine.invoice_match import find_invoice
-from src.engine.results import ExceptionReason, FilterOutcome, InvoiceMatch
-from src.graph.state import ApprovalAction, ApprovalLine, ApprovalRow, Decision, RunState, TxResult, TxState
+from src.domain.models import BankTransaction, OpenInvoice
+from src.engine.results import ExceptionReason, FilterOutcome, IdentifiedBy, InvoiceMatch
+from src.graph.state import (
+    ApprovalAction,
+    ApprovalLine,
+    ApprovalRow,
+    Decision,
+    PostingOutcome,
+    PostingStatus,
+    RunState,
+    TxResult,
+    TxState,
+)
 from src.graph.toolbox import Toolbox
 from src.llm.customer_llm import fallback_suggestion, suggest_customer
 from src.llm.explain import ExplainItem, compute_totals, explain_run, fallback_explanations
@@ -264,6 +285,7 @@ def _approval_rows(
         if match is None:
             continue  # סוננה - לא מוצגת לאישור
         lines: list[ApprovalLine] = []
+        actions = _allowed_actions(match)  # אילו כפתורים יוצגו
         if not match.is_exception:
             open_now = {inv.invoice_id: inv.open_money for inv in ledger.open_invoices(as_of=result.tx.tx_date)}
             for app in match.applications:
@@ -271,6 +293,13 @@ def _approval_rows(
                 after = before - app.amount  # היתרה אחרי
                 remaining[app.invoice_id] = after
                 lines.append(ApprovalLine(app.invoice_id, before, app.amount, after))
+        elif ApprovalAction.APPLY_TO_OLDEST in actions:  # חלקי בלי מספר: מראים מראש על איזו חשבונית (ה-78)
+            oldest = oldest_open_invoice(ledger, result.tx, match.customer_id)
+            if oldest is not None and result.tx.money <= oldest.open_money:  # לא חורגים מהיתרה
+                lines.append(ApprovalLine(oldest.invoice_id, oldest.open_money, result.tx.money,
+                                          oldest.open_money - result.tx.money))
+            else:
+                actions = (ApprovalAction.REJECT,)  # אין חשבונית מתאימה - רק טיפול ידני
         rows.append(
             ApprovalRow(
                 tx_id=result.tx.tx_id,  # מזהה ההעברה
@@ -280,19 +309,30 @@ def _approval_rows(
                 sentence=sentences.get(result.tx.tx_id, ""),  # המשפט מצומת ההסברים
                 lines=tuple(lines),  # החשבוניות: לפני / מוחל / אחרי
                 adjustments=match.adjustments,  # עמלה / ניכוי / הפרש שער
-                allowed_actions=_allowed_actions(match),  # אילו כפתורים יוצגו
+                allowed_actions=actions,  # אילו כפתורים יוצגו
             )
         )
     return rows
 
 
 def _allowed_actions(match: InvoiceMatch) -> tuple[ApprovalAction, ...]:
-    """עזר של _approval_rows: הצעה - לאשר/לדחות; חלקי בלי מספר - גם להחיל על הוותיקה / זכות; חריג אחר - לטיפול ידני."""
+    """עזר של _approval_rows: הצעה - לאשר/לדחות; חלקי בלי מספר - להחיל על הוותיקה / לדחות; חריג אחר - לטיפול ידני."""
     if not match.is_exception:
         return (ApprovalAction.APPROVE, ApprovalAction.REJECT)
     if match.exception_reason == ExceptionReason.PARTIAL_WITHOUT_REFERENCE:
-        return (ApprovalAction.APPLY_TO_OLDEST, ApprovalAction.LEAVE_ON_ACCOUNT, ApprovalAction.REJECT)  # ה-57
+        return (ApprovalAction.APPLY_TO_OLDEST, ApprovalAction.REJECT)  # ה-57; זכות ללקוח ירדה (ה-78)
     return (ApprovalAction.REJECT,)  # חריג אחר: לא נרשם אוטומטית - לטיפול ידני
+
+
+def oldest_open_invoice(ledger: LedgerStore, tx: BankTransaction, customer_id: str | None) -> OpenInvoice | None:
+    """עזר של _approval_rows ושל הרישום: החשבונית הפתוחה הוותיקה של הלקוח, במטבע ההעברה (None = אין)."""
+    if customer_id is None:
+        return None
+    same_currency = [
+        inv for inv in ledger.open_invoices(as_of=tx.tx_date, customer_id=customer_id)  # פתוחות ביום ההעברה
+        if inv.currency == tx.currency  # רק במטבע של ההעברה
+    ]
+    return min(same_currency, key=lambda inv: (inv.issue_date, inv.invoice_id), default=None)  # הוותיקה
 
 
 def validate_decisions(answer: object, rows: list[ApprovalRow]) -> list[Decision]:
@@ -312,3 +352,152 @@ def validate_decisions(answer: object, rows: list[ApprovalRow]) -> list[Decision
             raise ValueError(f"הפעולה {d.action} לא מותרת להעברה {d.tx_id}")
         seen.add(d.tx_id)
     return list(answer)  # העברה בלי החלטה - לא נרשמת בריצה הזו
+
+
+# ======================================================================
+# חלק 3 – הרישום (שלב 7, ה-78)
+# ======================================================================
+
+ALIAS_SOURCES = {IdentifiedBy.ALIAS, IdentifiedBy.FUZZY, IdentifiedBy.LLM}  # מאלה לומדים כינוי (לא ממספר חשבונית / שם זהה)
+
+
+def post_receipts_node(state: RunState, runtime: Runtime[Toolbox]) -> dict:
+    """רושם את מה שאושר, מעביר לטיפול ידני את מה שנדחה, וכותב יומן ביקורת לכל החלטה.
+
+    בעיה עסקית בהעברה אחת -> סטטוס, והשאר ממשיכות. כל שגיאה אחרת (מסד, דיסק) -> עוצרת את הצומת;
+    אפשר להריץ אותו שוב בבטחה (continue_posting), כי הרישום אידמפוטנטי.
+    """
+    tools = runtime.context  # ארגז הכלים
+    results = {r.tx.tx_id: r for r in state["checked_results"]}  # העברה -> התוצאה שלה
+    decided = {d.tx_id: d for d in state.get("decisions", [])}  # העברה -> ההחלטה (מי שלא הוחלט - חסר)
+    outcomes: list[PostingOutcome] = []
+    for row in state["approval_rows"]:  # כל שורה שהוצגה במסך, לפי הסדר
+        decision = decided.get(row.tx_id)
+        if decision is None:
+            outcomes.append(PostingOutcome(row.tx_id, PostingStatus.PENDING))  # לא נוגעים - תוצע שוב
+            continue
+        outcome = _apply_decision(decision, row, results[row.tx_id], state["run_id"], tools.ledger)
+        tools.ledger.record_audit(  # יומן ביקורת: מה הוצג, מה הוחלט, מי, ומה קרה
+            AuditEntry(
+                run_id=state["run_id"],
+                tx_id=row.tx_id,
+                proposal=_proposal_json(row),
+                action=decision.action,
+                approved_by=decision.approved_by,
+                outcome=outcome.status,
+                receipt_id=outcome.receipt_id,
+                detail=outcome.detail,
+            )
+        )
+        outcomes.append(outcome)
+    return {"postings": outcomes}  # התוצאות -> לשדה postings (לדוח)
+
+
+def _apply_decision(
+    decision: Decision, row: ApprovalRow, result: TxResult, run_id: str, ledger: LedgerStore
+) -> PostingOutcome:
+    """עזר של post_receipts_node: מבצע החלטה אחת ומחזיר מה קרה."""
+    tx_id = row.tx_id
+    if decision.action == ApprovalAction.REJECT:  # לטיפול ידני
+        try:
+            ledger.mark_processed(tx_id, run_id, "MANUAL", f"נדחתה על ידי {decision.approved_by}")
+        except DuplicatePostingError:
+            pass  # כבר סומנה (למשל הצומת רץ שוב אחרי תקלה) - אותה תוצאה
+        return PostingOutcome(tx_id, PostingStatus.MANUAL, detail="לטיפול ידני")
+
+    posting = _posting_for(decision, row, result, run_id)  # מה בדיוק אושר
+    existing = ledger.receipt_for_tx(tx_id)
+    if existing is not None:  # כבר רשום - לוודא שזה אותו דבר לפני שמדלגים
+        return _compare_existing(posting, existing)
+
+    changed = _changed_since_shown(row, result, decision, ledger)
+    if changed:
+        return PostingOutcome(tx_id, PostingStatus.CHANGED_SINCE_SHOWN, detail=changed)
+
+    try:
+        receipt = ledger.post_receipt(posting)  # הכל או כלום + בקרת יתרה אחרי (קיים מ-שלב 3)
+    except DuplicatePostingError:  # מישהו רשם בדיוק עכשיו
+        again = ledger.receipt_for_tx(tx_id)
+        if again is None:
+            return PostingOutcome(tx_id, PostingStatus.CONFLICTS_WITH_EXISTING, detail="ההעברה כבר סומנה כמטופלת")
+        return _compare_existing(posting, again)
+    except PostingControlError as exc:
+        return PostingOutcome(tx_id, PostingStatus.CONTROL_FAILED, detail=str(exc))
+
+    note = _learn_alias(result, posting.customer_id, ledger)  # כל אישור מלמד את הסוכן
+    return PostingOutcome(tx_id, PostingStatus.POSTED, receipt_id=receipt.receipt_id, detail=note)
+
+
+def _posting_for(decision: Decision, row: ApprovalRow, result: TxResult, run_id: str) -> ReceiptPosting:
+    """עזר של _apply_decision: בקשת הרישום - בדיוק מה שהוצג במסך."""
+    match = result.match
+    if decision.action == ApprovalAction.APPLY_TO_OLDEST:  # החשבונית שהוצגה בשורה
+        line = row.lines[0]
+        return ReceiptPosting(
+            tx_id=row.tx_id, customer_id=match.customer_id, amount=line.applied, certainty=match.certainty,
+            approved_by=decision.approved_by, run_id=run_id, applications=[Application(line.invoice_id, line.applied)],
+        )
+    return ReceiptPosting(  # APPROVE: ההצעה כמו שהיא
+        tx_id=row.tx_id, customer_id=match.customer_id, amount=match.receipt_amount, certainty=match.certainty,
+        approved_by=decision.approved_by, run_id=run_id,
+        applications=list(match.applications), adjustments=list(match.adjustments),
+    )
+
+
+def _changed_since_shown(row: ApprovalRow, result: TxResult, decision: Decision, ledger: LedgerStore) -> str:
+    """עזר של _apply_decision: בקרה לפני רישום - היתרה עכשיו שווה למה שהוצג? ("" = הכל תקין)."""
+    open_now = {inv.invoice_id: inv.open_money for inv in ledger.open_invoices(as_of=result.tx.tx_date)}
+    for line in row.lines:
+        now = open_now.get(line.invoice_id)  # None = החשבונית כבר סגורה
+        if now != line.open_before:
+            return f"היתרה של {line.invoice_id} הוצגה {line.open_before}, ועכשיו {now if now is not None else 'סגורה'}"
+    if decision.action == ApprovalAction.APPLY_TO_OLDEST:  # היעד לא משתנה בשקט
+        oldest = oldest_open_invoice(ledger, result.tx, result.match.customer_id)
+        if oldest is None or oldest.invoice_id != row.lines[0].invoice_id:
+            return f"החשבונית הוותיקה כבר אינה {row.lines[0].invoice_id}"
+    return ""
+
+
+def _compare_existing(posting: ReceiptPosting, existing: ExistingReceipt) -> PostingOutcome:
+    """עזר של _apply_decision: תקבול שכבר רשום - זהה למה שאושר (מדלגים) או שונה (לטיפול ידני)?"""
+    same = (
+        existing.customer_id == posting.customer_id
+        and existing.amount == posting.amount
+        and sorted((a.invoice_id, a.amount.amount) for a in existing.applications)
+        == sorted((a.invoice_id, a.amount.amount) for a in posting.applications)
+    )
+    if same:
+        return PostingOutcome(posting.tx_id, PostingStatus.ALREADY_POSTED, receipt_id=existing.receipt_id)
+    return PostingOutcome(
+        posting.tx_id, PostingStatus.CONFLICTS_WITH_EXISTING, receipt_id=existing.receipt_id,
+        detail=f"רשום כבר תקבול {existing.receipt_id} שונה ממה שאושר",
+    )
+
+
+def _learn_alias(result: TxResult, customer_id: str, ledger: LedgerStore) -> str:
+    """עזר של _apply_decision: אחרי אישור - לומדים את טקסט הבנק ככינוי של הלקוח (סעיף 12, ה-78)."""
+    if result.customer is None or result.customer.identified_by not in ALIAS_SOURCES:
+        return ""  # זוהה לפי מספר חשבונית / שם זהה - אין מה ללמוד
+    bank_name = result.tx.bank_text.strip()
+    if not bank_name:
+        return ""
+    owners = {a.customer_id for a in ledger.aliases() if normalize_name(a.bank_name) == normalize_name(bank_name)}
+    if owners and customer_id not in owners:  # השם כבר שייך ללקוח אחר - לא מערבבים
+        return f"כינוי לא נלמד: '{bank_name}' כבר משויך ל-{', '.join(sorted(owners))}"
+    ledger.confirm_alias(bank_name, customer_id)
+    return f"כינוי נלמד: '{bank_name}'"
+
+
+def _proposal_json(row: ApprovalRow) -> str:
+    """עזר של post_receipts_node: ההצעה שהוצגה במסך, כ-JSON קריא, ליומן הביקורת."""
+    return json.dumps(
+        {
+            "certainty": row.certainty,
+            "customer": row.customer_name,
+            "bank_amount": str(row.bank_amount),
+            "lines": [[ln.invoice_id, str(ln.open_before), str(ln.applied), str(ln.open_after)] for ln in row.lines],
+            "adjustments": [[adj.type, str(adj.amount)] for adj in row.adjustments],
+            "sentence": row.sentence,
+        },
+        ensure_ascii=False,  # עברית נשמרת כעברית
+    )

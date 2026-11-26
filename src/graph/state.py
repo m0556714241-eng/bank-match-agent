@@ -45,8 +45,7 @@ class ApprovalAction(StrEnum):
 
     APPROVE = "APPROVE"  # לאשר את ההצעה כמו שהיא
     REJECT = "REJECT"  # לדחות - לא נרשם כלום
-    APPLY_TO_OLDEST = "APPLY_TO_OLDEST"  # חלקי בלי מספר חשבונית: להחיל על הוותיקה (ה-57)
-    LEAVE_ON_ACCOUNT = "LEAVE_ON_ACCOUNT"  # להשאיר כזכות בחשבון הלקוח (ה-57; הרישום - שלב 7)
+    APPLY_TO_OLDEST = "APPLY_TO_OLDEST"  # חלקי בלי מספר חשבונית: להחיל על הוותיקה שהוצגה במסך (ה-57, ה-78)
 
 
 @dataclass(frozen=True)
@@ -85,6 +84,31 @@ class Decision:
     approved_by: str  # מי החליט (נשמר ברישום)
 
 
+# ---------- תוצאת הרישום של העברה אחת (שלב 7, ה-78) ----------
+
+
+class PostingStatus(StrEnum):
+    """מה קרה להעברה בצומת הרישום - מה שמנהלת החשבונות תראה בדוח."""
+
+    POSTED = "POSTED"  # נרשם תקבול
+    MANUAL = "MANUAL"  # נדחתה - עברה לטיפול ידני, לא תוצע שוב
+    PENDING = "PENDING"  # לא התקבלה החלטה - תוצע שוב בריצה הבאה של היום
+    ALREADY_POSTED = "ALREADY_POSTED"  # כבר הייתה רשומה, וזהה למה שאושר (למשל אחרי קריסה וחידוש)
+    CHANGED_SINCE_SHOWN = "CHANGED_SINCE_SHOWN"  # היתרה / החשבונית השתנו מאז שהוצגו - לא נרשם, לבדוק מחדש
+    CONFLICTS_WITH_EXISTING = "CONFLICTS_WITH_EXISTING"  # כבר רשום תקבול שונה להעברה - לטיפול ידני
+    CONTROL_FAILED = "CONTROL_FAILED"  # בדיקת הבקרה של המסד נכשלה - שום דבר לא נרשם
+
+
+@dataclass(frozen=True)
+class PostingOutcome:
+    """תוצאת הרישום של העברה אחת."""
+
+    tx_id: str  # על איזו העברה
+    status: PostingStatus  # מה קרה
+    receipt_id: str | None = None  # מספר התקבול (כשנרשם או כבר היה רשום)
+    detail: str = ""  # הסבר קצר: למה נעצר, האם נלמד כינוי
+
+
 # ---------- הלוח של העברה אחת (תת-גרף) ----------
 
 
@@ -121,3 +145,4 @@ class RunState(TypedDict, total=False):
     explanations: ExplanationResult  # המשפטים והסיכום (מ-explain_and_summarize)
     approval_rows: list[ApprovalRow]  # מה שמוצג במסך האישור
     decisions: list[Decision]  # מה מנהלת החשבונות החליטה (מ-human_approval)
+    postings: list[PostingOutcome]  # מה קרה לכל העברה ברישום (מ-post_receipts) - לדוח (שלב 9)

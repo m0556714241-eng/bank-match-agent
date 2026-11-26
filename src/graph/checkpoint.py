@@ -50,6 +50,8 @@ ALLOWED_TYPES: list[tuple[str, str]] = [
     ("src.graph.state", "ApprovalLine"),
     ("src.graph.state", "ApprovalRow"),
     ("src.graph.state", "Decision"),
+    ("src.graph.state", "PostingStatus"),
+    ("src.graph.state", "PostingOutcome"),
 ]
 
 

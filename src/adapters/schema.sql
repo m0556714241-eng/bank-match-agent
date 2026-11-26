@@ -99,9 +99,27 @@ CREATE TABLE aliases (
 CREATE TABLE processed_bank_tx (
     tx_id         TEXT PRIMARY KEY,
     run_id        TEXT NOT NULL,
-    result        TEXT NOT NULL CHECK (result IN ('POSTED', 'FILTERED', 'REJECTED')),
-    processed_at  TEXT NOT NULL
+    result        TEXT NOT NULL CHECK (result IN ('POSTED', 'FILTERED', 'MANUAL')),  -- MANUAL = נדחתה, לטיפול ידני (ה-78)
+    processed_at  TEXT NOT NULL,
+    note          TEXT NOT NULL DEFAULT ''     -- למשל הסיבה לטיפול ידני
 ) STRICT;
+
+
+-- ---------- 9. יומן ביקורת: כל החלטה של אדם ותוצאת הרישום (ה-78, רק מוסיפים) ----------
+CREATE TABLE approval_audit (
+    audit_id     INTEGER PRIMARY KEY,         -- מספר רץ אוטומטי
+    run_id       TEXT NOT NULL,               -- באיזו ריצה
+    tx_id        TEXT NOT NULL,               -- על איזו העברה
+    proposal     TEXT NOT NULL,               -- ההצעה שהוצגה במסך (JSON): ודאות, לקוח, חשבוניות, סכומים
+    action       TEXT NOT NULL CHECK (action IN ('APPROVE', 'REJECT', 'APPLY_TO_OLDEST')),  -- מה הוחלט
+    approved_by  TEXT NOT NULL,               -- מי החליט
+    decided_at   TEXT NOT NULL,               -- מתי (UTC)
+    outcome      TEXT NOT NULL,               -- מה קרה ברישום: POSTED / MANUAL / CHANGED_SINCE_SHOWN ...
+    receipt_id   TEXT,                        -- מספר התקבול, אם נרשם
+    detail       TEXT NOT NULL DEFAULT ''     -- הסבר קצר, למשל למה הרישום נעצר
+) STRICT;
+
+CREATE INDEX idx_audit_run ON approval_audit (run_id);
 
 
 -- =====================================================================
@@ -144,3 +162,8 @@ CREATE TRIGGER adjustments_no_update BEFORE UPDATE ON adjustments
 BEGIN SELECT RAISE(ABORT, 'adjustments are append-only'); END;
 CREATE TRIGGER adjustments_no_delete BEFORE DELETE ON adjustments
 BEGIN SELECT RAISE(ABORT, 'adjustments are append-only'); END;
+
+CREATE TRIGGER audit_no_update BEFORE UPDATE ON approval_audit
+BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
+CREATE TRIGGER audit_no_delete BEFORE DELETE ON approval_audit
+BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;

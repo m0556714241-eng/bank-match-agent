@@ -16,7 +16,10 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from src.adapters.interfaces import (
+    Application,
+    AuditEntry,
     DuplicatePostingError,
+    ExistingReceipt,
     PostingControlError,
     PostingResult,
     ReceiptPosting,
@@ -133,19 +136,66 @@ class SqliteLedger:
             conn.close()
         return Alias.model_validate(dict(row))
 
-    def mark_processed(self, tx_id: str, run_id: str, result: str) -> None:
-        """סימון תנועה שטופלה בלי תקבול (FILTERED / REJECTED)."""
+    def mark_processed(self, tx_id: str, run_id: str, result: str, note: str = "") -> None:
+        """סימון תנועה שטופלה בלי תקבול (FILTERED / MANUAL), עם הערה (למשל למה לטיפול ידני)."""
         conn = _open(self._db_path)
         try:
             with conn:
                 conn.execute(
-                    "INSERT INTO processed_bank_tx (tx_id, run_id, result, processed_at) VALUES (?, ?, ?, ?)",
-                    (tx_id, run_id, result, _now()),
+                    "INSERT INTO processed_bank_tx (tx_id, run_id, result, processed_at, note) VALUES (?, ?, ?, ?, ?)",
+                    (tx_id, run_id, result, _now(), note),
                 )
         except sqlite3.IntegrityError as exc:
             raise DuplicatePostingError(f"{tx_id} כבר סומנה כמטופלת") from exc
         finally:
             conn.close()
+
+    def receipt_for_tx(self, tx_id: str) -> ExistingReceipt | None:
+        """התקבול שכבר רשום להעברה, עם ההחלות שלו (None = לא נרשם)."""
+        with self._read() as conn:
+            row = conn.execute("SELECT * FROM receipts WHERE tx_id = ?", (tx_id,)).fetchone()
+            if row is None:
+                return None
+            apps = conn.execute(
+                "SELECT invoice_id, applied_minor, currency FROM receipt_applications"
+                " WHERE receipt_id = ? ORDER BY application_id",
+                (row["receipt_id"],),
+            ).fetchall()
+        return ExistingReceipt(
+            receipt_id=row["receipt_id"],
+            customer_id=row["customer_id"],
+            amount=Money.from_minor(row["amount_minor"], row["currency"]),
+            applications=tuple(
+                Application(a["invoice_id"], Money.from_minor(a["applied_minor"], a["currency"])) for a in apps
+            ),
+        )
+
+    def record_audit(self, entry: AuditEntry) -> None:
+        """שורה חדשה ביומן הביקורת. המועד - עכשיו, בשעון אחיד."""
+        conn = _open(self._db_path)
+        try:
+            with conn:
+                conn.execute(
+                    "INSERT INTO approval_audit"
+                    " (run_id, tx_id, proposal, action, approved_by, decided_at, outcome, receipt_id, detail)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (entry.run_id, entry.tx_id, entry.proposal, entry.action, entry.approved_by,
+                     _now(), entry.outcome, entry.receipt_id, entry.detail),
+                )
+        finally:
+            conn.close()
+
+    def audit_entries(self, run_id: str) -> list[AuditEntry]:
+        """כל שורות הביקורת של ריצה, לפי הסדר שנכתבו."""
+        with self._read() as conn:
+            rows = conn.execute(
+                "SELECT * FROM approval_audit WHERE run_id = ? ORDER BY audit_id", (run_id,)
+            ).fetchall()
+        return [
+            AuditEntry(r["run_id"], r["tx_id"], r["proposal"], r["action"], r["approved_by"],
+                       r["outcome"], r["receipt_id"], r["detail"])
+            for r in rows
+        ]
 
     def post_receipt(self, posting: ReceiptPosting) -> PostingResult:
         """רישום תקבול + החלות + הפרשים + סימון כמטופלת - הכול או כלום, כולל בדיקת בקרה."""

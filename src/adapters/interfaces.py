@@ -126,6 +126,30 @@ class ReceiptPosting:
 
 
 @dataclass(frozen=True)
+class ExistingReceipt:
+    """תקבול שכבר רשום להעברה - כדי לבדוק שהוא זהה למה שאושר לפני שמדלגים (ה-78)."""
+
+    receipt_id: str  # מספר התקבול
+    customer_id: str  # הלקוח שנרשם
+    amount: Money  # סכום התקבול
+    applications: tuple[Application, ...]  # על אילו חשבוניות, וכמה
+
+
+@dataclass(frozen=True)
+class AuditEntry:
+    """שורה ביומן הביקורת: החלטה של אדם + מה קרה ברישום (ה-78). המועד נקבע במסד."""
+
+    run_id: str  # באיזו ריצה
+    tx_id: str  # על איזו העברה
+    proposal: str  # ההצעה שהוצגה, כ-JSON
+    action: str  # APPROVE / REJECT / APPLY_TO_OLDEST
+    approved_by: str  # מי החליט
+    outcome: str  # תוצאת הרישום
+    receipt_id: str | None = None  # מספר התקבול, אם נרשם
+    detail: str = ""  # הסבר קצר
+
+
+@dataclass(frozen=True)
 class PostingResult:
     """תוצאת רישום מוצלח: מספר התקבול והיתרות אחרי הרישום (לבדיקת הבקרה)."""
 
@@ -186,8 +210,20 @@ class LedgerStore(Protocol):
         """מתוך רשימת תנועות - אילו כבר טופלו (הגנה מכפילות)."""
         ...
 
-    def mark_processed(self, tx_id: str, run_id: str, result: str) -> None:
-        """סימון תנועה שטופלה בלי רישום תקבול (למשל: סוננה, נדחתה)."""
+    def mark_processed(self, tx_id: str, run_id: str, result: str, note: str = "") -> None:
+        """סימון תנועה שטופלה בלי רישום תקבול (סוננה / לטיפול ידני), עם הערה."""
+        ...
+
+    def receipt_for_tx(self, tx_id: str) -> ExistingReceipt | None:
+        """התקבול שכבר רשום להעברה (None = אין) - לבדיקה לפני "כבר נרשמה" (ה-78)."""
+        ...
+
+    def record_audit(self, entry: AuditEntry) -> None:
+        """הוספת שורה ליומן הביקורת (ה-78)."""
+        ...
+
+    def audit_entries(self, run_id: str) -> list[AuditEntry]:
+        """כל שורות הביקורת של ריצה - לדוח ולבדיקות."""
         ...
 
     def post_receipt(self, posting: ReceiptPosting) -> PostingResult:

@@ -61,9 +61,8 @@ def identify_customer(
     matching_aliases = [a for a in aliases if normalize_name(a.bank_name) == text]
     if matching_aliases:
         ids = tuple(dict.fromkeys(a.customer_id for a in matching_aliases))
-        confirmed = min(a.times_confirmed for a in matching_aliases)
-        strong = confirmed >= policy.alias_confirmations_for_certain
-        return CustomerMatch(CustomerOutcome.IDENTIFIED, ids, IdentifiedBy.ALIAS, strong=strong, invoice_refs=refs)
+        # כינוי לעולם לא "ודאי" - לכל היותר "סביר", גם אחרי הרבה אישורים (ה-78)
+        return CustomerMatch(CustomerOutcome.IDENTIFIED, ids, IdentifiedBy.ALIAS, strong=False, invoice_refs=refs)
 
     # 4. דמיון שמות
     scored = _score_customers(text, customers, aliases)

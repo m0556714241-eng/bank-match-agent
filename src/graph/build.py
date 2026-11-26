@@ -92,6 +92,7 @@ def build_run_graph(checkpointer: BaseCheckpointSaver | None = None) -> Compiled
     )
     builder.add_node("prepare_approval", nodes.prepare_approval_node)  # שורות המסך: לפני / מוחל / אחרי
     builder.add_node("human_approval", nodes.human_approval_node)  # רק עצירה + בדיקת ההחלטות
+    builder.add_node("post_receipts", nodes.post_receipts_node)  # רישום + יומן ביקורת (שלב 7)
 
     # ----- החצים -----
     builder.add_edge(START, "load_day")  # כניסה: תמיד מתחילים בטעינה
@@ -104,7 +105,8 @@ def build_run_graph(checkpointer: BaseCheckpointSaver | None = None) -> Compiled
     builder.add_edge("collect_results", "explain_and_summarize")  # -> הסברים
     builder.add_edge("explain_and_summarize", "prepare_approval")  # -> הכנת המסך
     builder.add_edge("prepare_approval", "human_approval")  # -> עצירה לאישור
-    builder.add_edge("human_approval", END)  # בשלב 7 יוחלף: -> post_receipts
+    builder.add_edge("human_approval", "post_receipts")  # אחרי האישור - רישום
+    builder.add_edge("post_receipts", END)  # סוף הריצה
 
     return builder.compile(checkpointer=checkpointer)  # השומר מחובר - תת-הגרף יורש אותו
 
@@ -172,4 +174,22 @@ def resume_run(
         raise
     still_waiting = "human_approval" in graph.get_state(config).next  # עצרה שוב? (למשל ההחלטות נדחו בבדיקה)
     registry.release(run_id, RunStatus.WAITING if still_waiting else RunStatus.DONE)  # שחרור הנעילה
+    return result
+
+
+def continue_posting(graph: CompiledStateGraph, toolbox: Toolbox, registry: RunRegistry, run_id: str) -> dict:
+    """ממשיך ריצה שהרישום שלה נעצר בתקלה מערכתית (מסד נעול, דיסק): מריץ שוב את post_receipts.
+
+    בטוח: מה שכבר נרשם מזוהה כ"כבר נרשמה" ולא נרשם שוב (ה-78).
+    """
+    registry.claim(run_id)  # אותה נעילה כמו בחידוש
+    config = run_config(run_id)
+    try:
+        if "post_receipts" not in graph.get_state(config).next:  # הריצה לא נעצרה ברישום
+            raise RunNotWaitingError(f"הריצה {run_id} לא נעצרה באמצע רישום")
+        result = graph.invoke(None, config=config, context=toolbox, durability="sync")  # None = ממשיכים מהשמירה
+    except BaseException:
+        registry.release(run_id, RunStatus.WAITING)  # נכשל שוב - אפשר לנסות שוב
+        raise
+    registry.release(run_id, RunStatus.DONE)
     return result
